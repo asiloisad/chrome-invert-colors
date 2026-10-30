@@ -40,7 +40,7 @@ Run `npm run icons` after changing `icons/icon.svg`, and include the regenerated
 1. Update both version fields and add the release notes to [CHANGELOG.md](CHANGELOG.md).
 2. Run the validation commands above and `npm run package`.
 3. Commit the reviewed source changes and create a matching version tag, such as `v1.0.0` for version `1.0.0`.
-4. Push the tag to GitHub. The release workflow prepares a **draft GitHub Release** with the extension ZIP and its SHA-256 checksum.
+4. Push the tag to GitHub. The release workflow prepares a **draft GitHub Release** with the extension ZIP and its SHA-256 checksum. Reusing a tag for an existing mutable release replaces its assets while preserving its publication status and notes; immutable releases require a new version. The workflow rejects assets if the tag moved during the build.
 5. Review the draft notes and assets before publishing the release.
 
 A GitHub Release distributes an unpacked extension archive. It does not publish the extension to a browser extension store.

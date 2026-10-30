@@ -1,4 +1,4 @@
-name: Draft release
+name: Release
 
 on:
   push:
@@ -43,7 +43,7 @@ jobs:
           retention-days: 14
 
   draft:
-    name: Create draft GitHub Release
+    name: Create or refresh GitHub Release
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -54,12 +54,27 @@ jobs:
         with:
           name: release-assets
           path: dist
-      - name: Attach tested assets to a draft release
+      - name: Attach tested release assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: >-
-          gh release create "$RELEASE_TAG" dist/*.zip dist/*.sha256
-          --repo "$GH_REPO" --verify-tag --draft --generate-notes
-          --title "Invert colors $RELEASE_TAG"
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          current_commit="$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)"
+          if [[ "$current_commit" != "$EXPECTED_COMMIT" ]]; then
+            echo "::error::The release tag moved while these assets were being built."
+            exit 1
+          fi
+          if immutable="$(gh release view "$RELEASE_TAG" --repo "$GH_REPO" --json isImmutable --jq .isImmutable)"; then
+            if [[ "$immutable" == 'true' ]]; then
+              echo "::error::This release is immutable. Publish a new version instead."
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" dist/*.zip dist/*.sha256 --repo "$GH_REPO" --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/*.zip dist/*.sha256 \
+              --repo "$GH_REPO" --verify-tag --draft --generate-notes \
+              --title "Invert colors $RELEASE_TAG"
+          fi
