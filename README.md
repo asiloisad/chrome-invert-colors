@@ -1,10 +1,10 @@
 # Invert colors
 
-A Manifest V3 extension for **Brave and other Chromium browsers**, designed for people who use system-wide inverted screen colors.
+Invert colors on web pages.
+
+A Manifest V3 extension for **Chromium browsers**, designed for people who use system-wide inverted screen colors.
 
 With screen inversion enabled, a light website becomes dark, but its images also become negative. Invert colors compensates by inverting the media before the system does. You can save a different mode for each website or change the current tab temporarily.
-
-**English is the only supported interface language.** Requires Chromium 120 or newer. The extension has no runtime dependencies and needs no build step to install.
 
 ## Install
 
