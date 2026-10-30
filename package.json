@@ -1,0 +1,21 @@
+{
+  "name": "invert-colors",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Manifest V3 color compensation for Brave and Chromium",
+  "author": "Sebastian Balcerowiak",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/model.test.mjs tests/background.test.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "check": "node scripts/check.mjs",
+    "package": "node scripts/package.mjs"
+  },
+  "engines": { "node": ">=20.9.0" },
+  "devDependencies": {
+    "playwright": "1.64.1",
+    "sharp": "0.35.5"
+  }
+}

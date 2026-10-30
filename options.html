@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Invert colors — Settings</title>
+    <link rel="stylesheet" href="ui.css">
+    <script type="module" src="options.js"></script>
+  </head>
+  <body class="options">
+    <main class="settings-main">
+      <header class="settings-header"><div class="brand"><img src="icons/icon48.png" width="40" height="40" alt=""><div><h1>Invert colors</h1><p>Settings</p></div></div><button id="open-shortcuts" class="button secondary" type="button">Keyboard shortcuts</button></header>
+      <p class="intro">Compensate for inverted screen colors by inverting media or the whole page. Saved website modes and temporary tab controls work independently.</p>
+
+      <div class="save-feedback"><p id="status" class="status" role="status" aria-live="polite">Loading settings…</p><p id="error" class="error" role="alert" hidden></p></div>
+
+      <section class="settings-section" aria-labelledby="general-heading">
+        <h2 id="general-heading">General</h2>
+        <label class="switch-row"><span><strong>Extension enabled</strong><small>Turning this off pauses filters in all tabs.</small></span><input id="enabled" class="switch" type="checkbox" disabled></label>
+        <div class="setting-row"><label for="default-mode"><strong>Default mode</strong><small>For websites without a saved rule</small></label><select id="default-mode" disabled><option value="media">Media only</option><option value="page">Whole page</option><option value="off">No changes</option></select></div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="media-heading">
+        <h2 id="media-heading">What Media only mode inverts</h2>
+        <p class="section-description">These settings apply to all websites using this mode.</p>
+        <div class="media-settings">
+          <label class="check-row"><input type="checkbox" data-media="images" disabled><span><strong>Images</strong><small>Photos and graphics in image elements</small></span></label>
+          <label class="check-row"><input type="checkbox" data-media="video" disabled><span><strong>Video</strong><small>The video player, including its own content</small></span></label>
+          <label class="check-row"><input type="checkbox" data-media="canvas" disabled><span><strong>Canvas</strong><small>Drawings, charts, and content rendered by web apps</small></span></label>
+          <label class="check-row"><input type="checkbox" data-media="svg" disabled><span><strong>SVG graphics</strong><small>Enable for colorful illustrations. This also includes icons and text inside SVG elements, so it is off by default.</small></span></label>
+          <label class="check-row"><input type="checkbox" data-media="backgrounds" disabled><span><strong>CSS background images — empty elements</strong><small>Only includes elements with no text or child elements. Other background images keep the page colors.</small></span></label>
+        </div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="sites-heading">
+        <div class="section-heading"><h2 id="sites-heading">Website rules</h2><span id="site-count" class="count">0</span></div>
+        <p class="section-description">A rule applies to an exact hostname. For example, <code>example.com</code> and <code>www.example.com</code> have separate settings.</p>
+        <form id="add-site" class="add-site">
+          <div class="field"><label for="new-hostname">Hostname or website address</label><input id="new-hostname" type="text" placeholder="e.g. example.com" autocomplete="off" spellcheck="false" required disabled></div>
+          <div class="field"><label for="new-mode">Mode</label><select id="new-mode" disabled><option value="media">Media only</option><option value="page">Whole page</option><option value="off">No changes</option></select></div>
+          <button id="add-site-button" class="button primary" type="submit" disabled>Save rule</button>
+        </form>
+        <label class="search-label" for="site-search">Search rules</label><input id="site-search" class="site-search" type="search" placeholder="Filter by hostname" autocomplete="off" disabled>
+        <p id="empty-sites" class="empty-state">No saved rules. New websites use the default mode.</p>
+        <ul id="site-list" class="site-list" aria-label="Saved website rules"></ul>
+      </section>
+
+      <section class="settings-section" aria-labelledby="backup-heading">
+        <h2 id="backup-heading">Settings backup</h2>
+        <p class="section-description">Settings are stored locally in this browser. Exports also include saved hostnames. Importing replaces the current settings and does not transfer temporary tab states.</p>
+        <div class="button-row"><button id="export" class="button secondary" type="button" disabled>Export JSON</button><button id="import" class="button secondary" type="button" disabled>Import JSON</button><input id="import-file" class="visually-hidden" type="file" accept="application/json,.json" tabindex="-1" aria-label="JSON settings file"></div>
+      </section>
+      <footer class="settings-footer">Changes are saved automatically. Left-click the icon to open the panel; right-click for quick actions. You can also assign keyboard shortcuts.</footer>
+    </main>
+  </body>
+</html>

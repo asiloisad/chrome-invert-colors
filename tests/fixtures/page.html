@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Invert colors integration fixture</title>
+<style>
+  html { background: white; color: black; }
+  body { margin: 20px; font: 16px system-ui; }
+  .row { display: flex; align-items: start; gap: 12px; margin-bottom: 12px; }
+  img, video, canvas, svg, .background { display: block; width: 64px; height: 64px; }
+  .background { background-image: url('/swatch.svg'); }
+  #author { filter: opacity(.8); }
+  #author-important { filter: sepia(.3) !important; }
+  #author-live { filter: brightness(.8); }
+  #author-parent { filter: opacity(.9); }
+  .desaturated { filter: grayscale(.4); }
+  #background-pseudo::before { content: 'label'; }
+  iframe { width: 300px; height: 160px; border: 0; }
+  #text-swatch { width: 64px; height: 64px; background: rgb(20, 100, 220); }
+</style>
+<body>
+<div class="row">
+  <img id="image" src="/swatch.svg" alt="blue fixture">
+  <video id="video" poster="/swatch.svg"></video>
+  <canvas id="canvas" width="64" height="64"></canvas>
+  <svg id="svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" fill="rgb(20,100,220)"/></svg>
+  <div id="background" class="background"></div>
+  <div id="background-text" class="background">label</div>
+  <div id="background-pseudo" class="background"></div>
+  <div id="background-parent" class="background"><img id="background-inner" src="/swatch.svg" alt="child on background"></div>
+  <div id="text-swatch"></div>
+</div>
+<div class="row">
+  <div class="logo"><img id="nested" src="/swatch.svg" alt="nested logo"></div>
+  <img id="author" src="/swatch.svg" alt="author filter">
+  <img id="author-important" src="/swatch.svg" alt="important author filter">
+  <img id="author-live" src="/swatch.svg" alt="changing author filter">
+  <img id="author-class" src="/swatch.svg" alt="changing class filter">
+  <div id="author-parent"><img id="author-child" src="/swatch.svg" alt="filtered ancestor"></div>
+  <div id="shadow-host"></div>
+  <div id="late-shadow-host"></div>
+</div>
+<iframe id="same-frame" title="same origin" src="/frame.html"></iframe>
+<iframe id="cross-frame" title="other origin"></iframe>
+<script>
+  const paint = canvas => {
+    canvas.getContext('2d').fillStyle = 'rgb(20, 100, 220)';
+    canvas.getContext('2d').fillRect(0, 0, 64, 64);
+  };
+  paint(document.querySelector('#canvas'));
+  document.querySelector('#shadow-host').attachShadow({ mode: 'open' }).innerHTML =
+    '<style>img { display:block; width:64px; height:64px }</style><img id="shadow-image" src="/swatch.svg">';
+  const cross = new URL('/frame.html?cross', location.href);
+  cross.hostname = location.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+  document.querySelector('#cross-frame').src = cross.href;
+  window.addFixtures = () => {
+    const img = document.createElement('img');
+    img.id = 'dynamic-image'; img.src = '/swatch.svg'; document.body.append(img);
+    const host = document.createElement('div'); host.id = 'dynamic-shadow'; document.body.append(host);
+    host.attachShadow({ mode: 'open' }).innerHTML = '<img id="dynamic-shadow-image" src="/swatch.svg" width="64" height="64">';
+    const frame = document.createElement('iframe'); frame.id = 'dynamic-frame'; frame.src = '/frame.html?dynamic'; document.body.append(frame);
+    const srcdoc = document.createElement('iframe'); srcdoc.id = 'srcdoc-frame';
+    srcdoc.srcdoc = '<!doctype html><html><body style="margin:0"><img id="srcdoc-image" width="64" height="64" src="' + location.origin + '/swatch.svg"></body></html>';
+    document.body.append(srcdoc);
+  };
+</script>
+</body>
+</html>

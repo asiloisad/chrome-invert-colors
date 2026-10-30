@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Invert colors",
+  "version": "1.0.0",
+  "description": "Compensate for inverted screen colors with media filters, site rules, and temporary tab controls.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "scripting", "activeTab", "contextMenus", "webNavigation"],
+  "host_permissions": ["http://*/*", "https://*/*", "file:///*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_title": "Invert colors",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*", "file:///*"],
+    "js": ["shadow-hook.js"],
+    "world": "MAIN",
+    "run_at": "document_start",
+    "all_frames": true,
+    "match_about_blank": true,
+    "match_origin_as_fallback": true
+  }, {
+    "matches": ["http://*/*", "https://*/*", "file:///*"],
+    "js": ["content.js"],
+    "run_at": "document_start",
+    "all_frames": true,
+    "match_about_blank": true,
+    "match_origin_as_fallback": true
+  }],
+  "commands": {
+    "toggle-temporary": {
+      "description": "Temporarily invert the current tab's colors"
+    },
+    "cycle-site-mode": {
+      "description": "Cycle the saved site mode: media only / whole page / no changes"
+    },
+    "toggle-enabled": { "description": "Enable or pause Invert colors in all tabs" }
+  },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
+}

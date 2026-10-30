@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Invert colors</title>
+    <link rel="stylesheet" href="ui.css">
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body class="popup">
+    <main class="popup-main">
+      <header class="brand">
+        <img src="icons/icon48.png" width="32" height="32" alt="">
+        <div><h1>Invert colors</h1><p id="hostname" class="hostname">Loading…</p></div>
+      </header>
+
+      <label class="switch-row global-switch">
+        <span><strong>Extension enabled</strong><small>On all websites</small></span>
+        <input id="enabled" class="switch" type="checkbox" disabled>
+      </label>
+
+      <p id="page-notice" class="notice" hidden></p>
+
+      <fieldset id="site-controls" class="mode-fieldset" disabled>
+        <legend>Mode for this website</legend>
+        <div class="mode-grid">
+          <label class="mode-card"><input type="radio" name="site-mode" value="default"><span><strong>Default</strong><small id="default-description">Media only</small></span></label>
+          <label class="mode-card"><input type="radio" name="site-mode" value="media"><span><strong>Media only</strong><small>Images and other media</small></span></label>
+          <label class="mode-card"><input type="radio" name="site-mode" value="page"><span><strong>Whole page</strong><small>Including images</small></span></label>
+          <label class="mode-card"><input type="radio" name="site-mode" value="off"><span><strong>No changes</strong><small>No extension filters</small></span></label>
+        </div>
+        <p class="help">Saved for this exact hostname.</p>
+      </fieldset>
+
+      <section class="temporary-section" aria-labelledby="temporary-heading">
+        <h2 id="temporary-heading">Temporarily</h2>
+        <button id="temporary-disable" class="button temporary-button" type="button" aria-pressed="false" title="Disable filters in the current tab only" disabled><span>Disable temporarily</span><span id="temporary-disable-indicator" aria-hidden="true">Ⅱ</span></button>
+        <button id="temporary" class="button temporary-button" type="button" aria-pressed="false" disabled><span>Invert temporarily</span><span id="temporary-indicator" aria-hidden="true">↔</span></button>
+        <button id="temporary-whole-page" class="button temporary-button" type="button" aria-pressed="false" title="Temporarily invert the whole page, including images" disabled><span>Whole page</span><span id="temporary-whole-page-indicator" aria-hidden="true">◩</span></button>
+        <p class="help">Left-click the icon for this panel. Right-click for quick actions.</p>
+        <button id="reset-temporary" class="text-button" type="button" hidden>Restore saved mode</button>
+      </section>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <p id="error" class="error" role="alert" hidden></p>
+      <footer class="popup-footer"><button id="open-options" class="text-button" type="button">Settings</button><button id="open-shortcuts" class="text-button" type="button">Keyboard shortcuts</button></footer>
+    </main>
+  </body>
+</html>
