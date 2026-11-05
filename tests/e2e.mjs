@@ -302,6 +302,64 @@ try {
     }
   });
 
+  await test('delayed and copied image previews retain one compensation and preserve legitimate author inversions', async () => {
+    const preview = await context.newPage();
+    try {
+      await preview.goto(`${origin}/page.html?image-previews`, { waitUntil: 'load' });
+      const original = await preview.evaluate(() => window.addPreviewFixtures());
+      const authorFilter = 'brightness(0.5) invert(1)';
+      const legitFilter = `${authorFilter} invert(1)`;
+      const assertPreviews = async ids => {
+        await preview.waitForTimeout(200);
+        const filters = await preview.evaluate(ids => Object.fromEntries(ids.map(id =>
+          [id, getComputedStyle(document.getElementById(id)).filter])), ids);
+        assert.deepEqual(filters, Object.fromEntries(ids.map(id => [id, authorFilter])), 'Copied extension compensation must not become an additional author inversion');
+        assert.equal(await preview.locator('#preview-author-invert').evaluate(node => getComputedStyle(node).filter), legitFilter, 'A legitimate author inversion must remain composed with extension compensation');
+        assert.equal(await preview.locator('#preview-author-variable').evaluate(node => getComputedStyle(node).filter), legitFilter);
+        for (const id of ids) await pixel(preview, `#${id}`, [245, 205, 145]);
+        await pixel(preview, '#preview-author-invert', [10, 50, 110]);
+      };
+      await assertPreviews(['preview-thumbnail']);
+      await preview.evaluate(() => window.openDelayedPreview());
+      await assertPreviews(['preview-live']);
+      await preview.locator('#preview-live').evaluate(node => {
+        node.src = '/swatch.svg?enlarged-full-image';
+        node.style.objectFit = 'contain';
+      });
+      await preview.locator('#preview-live').evaluate(node => node.decode());
+      await assertPreviews(['preview-live']);
+      await preview.evaluate(() => window.copyPreviewThumbnail());
+      await assertPreviews(['preview-thumbnail', 'preview-live', 'preview-clone', 'preview-style-copy']);
+      await preview.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      await assertPreviews(['preview-clone', 'preview-style-copy']);
+
+      await state(preview, 'off');
+      await waitFilter(preview, '#preview-thumbnail', false);
+      const restored = await preview.evaluate(properties => Object.fromEntries([
+        'preview-thumbnail', 'preview-live', 'preview-clone', 'preview-style-copy', 'preview-author-invert', 'preview-author-variable',
+      ].map(id => {
+        const node = document.getElementById(id);
+        return [id, Object.fromEntries(Object.keys(properties).map(property => [property, {
+          value: node.style.getPropertyValue(property), priority: node.style.getPropertyPriority(property),
+        }]))];
+      })), original.thumbnail);
+      assert.deepEqual(restored, {
+        'preview-thumbnail': original.thumbnail,
+        'preview-live': original.thumbnail,
+        'preview-clone': original.thumbnail,
+        'preview-style-copy': original.thumbnail,
+        'preview-author-invert': original.authorInvert,
+        'preview-author-variable': original.authorVariable,
+      }, 'Disabling must restore copied original filters and transition declarations, including priorities');
+      assert.equal(await preview.locator('#preview-author-variable').evaluate(node => getComputedStyle(node).filter),
+        'brightness(0.5) invert(1)', 'Disabling must restore custom properties before resolving the author filter');
+    } finally {
+      await state(page, 'media');
+      await preview.close();
+      await page.bringToFront();
+    }
+  });
+
   await test('page mode clears media filters throughout frames and shadows to avoid two inversions', async () => {
     await state(page, 'page');
     await waitFilter(page, 'html', true);

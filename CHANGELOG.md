@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- Keep media inversion stable during CSS filter transitions, tab returns, and scrolling.
+- Preserve filter ownership when a site copies a thumbnail into an enlarged image preview, avoiding an extra inversion.
+
 ## 1.0.0
 
 Initial release of Invert colors, a Manifest V3 extension for Brave and other Chromium browsers.

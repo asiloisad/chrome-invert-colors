@@ -3,6 +3,7 @@
 
   const INSTANCE_KEY = Symbol.for("invert-colors.content.v1");
   const SHADOW_EVENT = "__invert_colors_open_shadow_v1__";
+  const FILTER_STATE_PROPERTY = "--invert-colors-filter-state-v1";
   const existing = globalThis[INSTANCE_KEY];
   if (existing) {
     try {
@@ -103,6 +104,77 @@
     }
   }
 
+  function copiedFilterRecord(element) {
+    // Inline metadata travels with cloneNode(), innerHTML and style.cssText.
+    // It lets a copied preview distinguish our filter from the site's own CSS.
+    const encoded = element.style.getPropertyValue(FILTER_STATE_PROPERTY);
+    if (!encoded || element.style.getPropertyPriority(FILTER_STATE_PROPERTY) !== "important") return null;
+    try {
+      const data = JSON.parse(decodeURIComponent(encoded.trim()));
+      if (
+        data.version !== 1 ||
+        typeof data.originalValue !== "string" ||
+        !["", "important"].includes(data.originalPriority) ||
+        typeof data.originalStylePresent !== "boolean" ||
+        typeof data.appliedValue !== "string" ||
+        typeof data.originalMetadataValue !== "string" ||
+        !["", "important"].includes(data.originalMetadataPriority)
+      ) return null;
+      return { ...data, appliedMetadataValue: encoded };
+    } catch {
+      return null;
+    }
+  }
+
+  function restoreFilterMetadata(element, record) {
+    if (
+      record.appliedMetadataValue &&
+      element.style.getPropertyValue(FILTER_STATE_PROPERTY) === record.appliedMetadataValue &&
+      element.style.getPropertyPriority(FILTER_STATE_PROPERTY) === "important"
+    ) {
+      if (record.originalMetadataValue) {
+        element.style.setProperty(FILTER_STATE_PROPERTY, record.originalMetadataValue, record.originalMetadataPriority);
+      } else {
+        element.style.removeProperty(FILTER_STATE_PROPERTY);
+      }
+    }
+    if (!record.originalStylePresent && !element.style.length) element.removeAttribute("style");
+    ownStyleSnapshots.set(element, element.getAttribute("style"));
+  }
+
+  function writeFilterMetadata(element, record) {
+    const data = {
+      version: 1,
+      originalValue: record.originalValue,
+      originalPriority: record.originalPriority,
+      originalStylePresent: record.originalStylePresent,
+      appliedValue: record.appliedValue,
+      originalMetadataValue: record.originalMetadataValue,
+      originalMetadataPriority: record.originalMetadataPriority,
+    };
+    // Escape parentheses as well: a quoted URL can legally contain unmatched
+    // parentheses, but an unquoted CSS custom-property token cannot.
+    record.appliedMetadataValue = encodeURIComponent(JSON.stringify(data)).replace(/[!'()*]/g,
+      character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+    element.style.setProperty(FILTER_STATE_PROPERTY, record.appliedMetadataValue, "important");
+  }
+
+  function adoptCopiedFilter(element) {
+    if (!element.style || managed.has(element)) return;
+    const record = copiedFilterRecord(element);
+    if (!record) return;
+    if (
+      element.style.getPropertyValue("filter") === record.appliedValue &&
+      element.style.getPropertyPriority("filter") === "important"
+    ) {
+      managed.set(element, record);
+    } else {
+      // A copied element may already have received a new author filter.
+      // Remove only the stale marker, keeping that new filter untouched.
+      restoreFilterMetadata(element, record);
+    }
+  }
+
   function setOriginalFilter(element, record) {
     if (record.originalValue) {
       element.style.setProperty("filter", record.originalValue, record.originalPriority);
@@ -114,6 +186,7 @@
   }
 
   function restoreFilter(element, record) {
+    restoreFilterMetadata(element, record);
     // A framework may have replaced our inline filter since the last mutation.
     if (
       element.style.getPropertyValue("filter") === record.appliedValue &&
@@ -134,6 +207,9 @@
         originalValue: currentValue,
         originalPriority: currentPriority,
         originalStylePresent: element.hasAttribute("style"),
+        originalMetadataValue: element.style.getPropertyValue(FILTER_STATE_PROPERTY),
+        originalMetadataPriority: element.style.getPropertyPriority(FILTER_STATE_PROPERTY),
+        appliedMetadataValue: "",
         appliedValue: "",
       };
       managed.set(element, record);
@@ -144,8 +220,16 @@
       record.originalStylePresent = element.hasAttribute("style");
       refresh = true;
     }
+    if (record.appliedMetadataValue && (
+      element.style.getPropertyValue(FILTER_STATE_PROPERTY) !== record.appliedMetadataValue ||
+      element.style.getPropertyPriority(FILTER_STATE_PROPERTY) !== "important"
+    )) {
+      record.originalMetadataValue = element.style.getPropertyValue(FILTER_STATE_PROPERTY);
+      record.originalMetadataPriority = element.style.getPropertyPriority(FILTER_STATE_PROPERTY);
+    }
     if (!refresh) return;
 
+    restoreFilterMetadata(element, record);
     setOriginalFilter(element, record);
     cancelFilterTransitions(element);
     const authorFilter = getComputedStyle(element).filter;
@@ -153,7 +237,9 @@
       ? `${authorFilter} invert(1)`
       : "invert(1)";
     element.style.setProperty("filter", record.appliedValue, "important");
+    record.appliedValue = element.style.getPropertyValue("filter");
     cancelFilterTransitions(element);
+    writeFilterMetadata(element, record);
     ownStyleSnapshots.set(element, element.getAttribute("style"));
   }
 
@@ -201,6 +287,7 @@
 
   function inspectElement(element, mediaEnabled, changed) {
     if (!element.isConnected) return;
+    adoptCopiedFilter(element);
     if (mediaEnabled && isCandidate(element)) candidates.add(element);
     else candidates.delete(element);
     if (changed) changed.add(element);

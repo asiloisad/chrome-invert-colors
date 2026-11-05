@@ -90,6 +90,60 @@
         value: node.style.getPropertyValue(property), priority: node.style.getPropertyPriority(property),
       }]))]));
   };
+  window.addPreviewFixtures = () => {
+    const gallery = document.createElement('section');
+    gallery.className = 'row';
+    gallery.id = 'preview-gallery';
+    const thumbnail = document.createElement('img');
+    thumbnail.id = 'preview-thumbnail';
+    thumbnail.src = '/swatch.svg?thumbnail';
+    thumbnail.alt = 'thumbnail copied into enlarged previews';
+    thumbnail.style.setProperty('filter', 'brightness(.5)', 'important');
+    thumbnail.style.setProperty('transition', 'filter 150ms linear', 'important');
+    const authorInvert = document.createElement('img');
+    authorInvert.id = 'preview-author-invert';
+    authorInvert.src = '/swatch.svg?author-invert';
+    authorInvert.alt = 'legitimate author inversion';
+    authorInvert.style.setProperty('filter', 'brightness(.5) invert(1)', 'important');
+    authorInvert.style.setProperty('transition', 'filter 150ms linear', 'important');
+    authorInvert.style.setProperty('--invert-colors-filter-state-v1', 'author-owned');
+    const authorVariable = document.createElement('img');
+    authorVariable.id = 'preview-author-variable';
+    authorVariable.src = '/swatch.svg?author-variable';
+    authorVariable.alt = 'author filter referencing an existing custom property';
+    authorVariable.style.setProperty('--invert-colors-filter-state-v1', 'invert(1)', 'important');
+    authorVariable.style.setProperty('filter', 'brightness(.5) var(--invert-colors-filter-state-v1)', 'important');
+    authorVariable.style.setProperty('transition', 'filter 150ms linear', 'important');
+    gallery.append(thumbnail, authorInvert, authorVariable);
+    document.body.prepend(gallery);
+    const properties = ['filter', 'transition', 'transition-property', 'transition-duration', 'transition-timing-function', 'transition-delay', 'transition-behavior', '--invert-colors-filter-state-v1'];
+    const snapshot = node => Object.fromEntries(properties.map(property => [property, {
+      value: node.style.getPropertyValue(property), priority: node.style.getPropertyPriority(property),
+    }]));
+    return { thumbnail: snapshot(thumbnail), authorInvert: snapshot(authorInvert), authorVariable: snapshot(authorVariable) };
+  };
+  window.openDelayedPreview = () => new Promise(resolve => setTimeout(() => {
+    const preview = document.createElement('img');
+    preview.id = 'preview-live';
+    preview.src = '/swatch.svg?preview-placeholder';
+    preview.alt = 'delayed enlarged image preview';
+    preview.style.setProperty('filter', 'brightness(.5)', 'important');
+    preview.style.setProperty('transition', 'filter 150ms linear', 'important');
+    document.querySelector('#preview-gallery').append(preview);
+    resolve();
+  }, 150));
+  window.copyPreviewThumbnail = () => {
+    const source = document.querySelector('#preview-thumbnail');
+    const clone = source.cloneNode(true);
+    clone.id = 'preview-clone';
+    clone.src = '/swatch.svg?cloned-full-image';
+    const styleCopy = document.createElement('img');
+    styleCopy.id = 'preview-style-copy';
+    styleCopy.src = '/swatch.svg?style-copied-full-image';
+    styleCopy.alt = 'new preview with copied thumbnail style';
+    styleCopy.style.cssText = source.style.cssText;
+    document.querySelector('#preview-gallery').append(clone, styleCopy);
+  };
 </script>
 </body>
 </html>
