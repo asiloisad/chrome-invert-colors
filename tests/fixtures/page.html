@@ -16,6 +16,10 @@
   #background-pseudo::before { content: 'label'; }
   iframe { width: 300px; height: 160px; border: 0; }
   #text-swatch { width: 64px; height: 64px; background: rgb(20, 100, 220); }
+  .transition-gallery { display: flex; gap: 12px; content-visibility: auto; contain-intrinsic-size: auto 64px; }
+  .transition-gallery img { transition: all 150ms linear; }
+  .transition-gallery .author-dimmed { filter: brightness(.5); }
+  .transition-gallery .author-contrasted { filter: contrast(.5); }
 </style>
 <body>
 <div class="row">
@@ -61,6 +65,30 @@
     const srcdoc = document.createElement('iframe'); srcdoc.id = 'srcdoc-frame';
     srcdoc.srcdoc = '<!doctype html><html><body style="margin:0"><img id="srcdoc-image" width="64" height="64" src="' + location.origin + '/swatch.svg"></body></html>';
     document.body.append(srcdoc);
+  };
+  window.addTransitionFixtures = () => {
+    const top = document.createElement('section');
+    top.className = 'transition-gallery';
+    top.innerHTML = '<img id="transition-top" src="/swatch.svg" alt="top transitioning image"><img id="transition-top-author" class="author-dimmed" src="/swatch.svg" alt="top author-filtered transitioning image">';
+    top.querySelector('#transition-top').style.setProperty('transition', 'filter 150ms linear', 'important');
+    document.body.prepend(top);
+    const spacer = document.createElement('div');
+    spacer.style.height = '1800px';
+    const bottom = document.createElement('section');
+    bottom.className = 'transition-gallery';
+    bottom.innerHTML = '<img id="transition-bottom" src="/swatch.svg" loading="lazy" alt="bottom transitioning image"><img id="transition-bottom-author" src="/swatch.svg" loading="lazy" alt="bottom author-filtered transitioning image">';
+    const author = bottom.querySelector('#transition-bottom-author');
+    author.style.setProperty('filter', 'brightness(.5)', 'important');
+    author.style.setProperty('transition-property', 'opacity, filter', 'important');
+    author.style.setProperty('transition-duration', '5s, 150ms', 'important');
+    author.style.setProperty('transition-timing-function', 'linear', 'important');
+    author.style.setProperty('transition-delay', '0s', 'important');
+    document.body.append(spacer, bottom);
+    const properties = ['filter', 'transition', 'transition-property', 'transition-duration', 'transition-timing-function', 'transition-delay', 'transition-behavior'];
+    return Object.fromEntries([...top.children, ...bottom.children].map(node => [node.id,
+      Object.fromEntries(properties.map(property => [property, {
+        value: node.style.getPropertyValue(property), priority: node.style.getPropertyPriority(property),
+      }]))]));
   };
 </script>
 </body>

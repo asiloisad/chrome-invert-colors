@@ -88,6 +88,21 @@
     return root instanceof ShadowRoot ? root.host : null;
   }
 
+  function cancelFilterTransitions(element) {
+    // A transition can keep reporting our old inversion after the inline filter
+    // is restored. Never capture that interpolated value as the site's filter.
+    // Leave unrelated transitions and pseudo-element animations running.
+    for (const animation of element.getAnimations()) {
+      if (
+        ["filter", "-webkit-filter"].includes(animation.transitionProperty) &&
+        animation.effect?.target === element &&
+        !animation.effect.pseudoElement
+      ) {
+        animation.cancel();
+      }
+    }
+  }
+
   function setOriginalFilter(element, record) {
     if (record.originalValue) {
       element.style.setProperty("filter", record.originalValue, record.originalPriority);
@@ -105,6 +120,7 @@
       element.style.getPropertyPriority("filter") === "important"
     ) {
       setOriginalFilter(element, record);
+      cancelFilterTransitions(element);
     }
     managed.delete(element);
   }
@@ -131,11 +147,13 @@
     if (!refresh) return;
 
     setOriginalFilter(element, record);
+    cancelFilterTransitions(element);
     const authorFilter = getComputedStyle(element).filter;
     record.appliedValue = authorFilter && authorFilter !== "none"
       ? `${authorFilter} invert(1)`
       : "invert(1)";
     element.style.setProperty("filter", record.appliedValue, "important");
+    cancelFilterTransitions(element);
     ownStyleSnapshots.set(element, element.getAttribute("style"));
   }
 

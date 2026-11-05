@@ -175,6 +175,133 @@ try {
     await page.waitForFunction(() => getComputedStyle(document.querySelector('#author-class')).filter === 'invert(1)');
   });
 
+  await test('transitioning galleries keep one inversion after tab returns, scrolling and author updates', async () => {
+    const gallery = await context.newPage();
+    const peer = await context.newPage();
+    const expected = {
+      'transition-top': 'invert(1)',
+      'transition-top-author': 'brightness(0.5) invert(1)',
+      'transition-bottom': 'invert(1)',
+      'transition-bottom-author': 'brightness(0.5) invert(1)',
+    };
+    let original;
+    try {
+      await gallery.goto(`${origin}/page.html?transition-gallery`, { waitUntil: 'load' });
+      await gallery.bringToFront();
+      original = await gallery.evaluate(() => window.addTransitionFixtures());
+      const assertGallery = async (position) => {
+        await gallery.locator(`#transition-${position}`).scrollIntoViewIfNeeded();
+        await gallery.locator(`#transition-${position}`).evaluate(node => node.decode());
+        // Wait past the fixture's 150ms transition; an interpolated filter is not a stable result.
+        await gallery.waitForTimeout(250);
+        const filters = await gallery.evaluate(ids => Object.fromEntries(ids.map(id =>
+          [id, getComputedStyle(document.getElementById(id)).filter])), Object.keys(expected));
+        assert.deepEqual(filters, expected, 'Each image must compose the author filter with exactly one inversion');
+        await pixel(gallery, `#transition-${position}`, [235, 155, 35]);
+        const authorPixel = expected[`transition-${position}-author`].startsWith('contrast')
+          ? [181, 141, 81] : [245, 205, 145];
+        await pixel(gallery, `#transition-${position}-author`, authorPixel);
+      };
+      const returnToGallery = async () => {
+        await gallery.evaluate(() => {
+          window.galleryVisibilityStates = [];
+          window.galleryVisibilityObserver = new AbortController();
+          document.addEventListener('visibilitychange', () => window.galleryVisibilityStates.push(document.visibilityState), { signal: window.galleryVisibilityObserver.signal });
+        });
+        await peer.bringToFront();
+        await gallery.bringToFront();
+        const states = await gallery.evaluate(() => {
+          window.galleryVisibilityObserver.abort();
+          return window.galleryVisibilityStates;
+        });
+        if (!states.includes('visible')) {
+          // Headless Chromium can keep every tab visible. Dispatch the same event to
+          // exercise the extension's real tab-return refresh deterministically.
+          await gallery.evaluate(() => {
+            if (document.visibilityState !== 'visible') throw new Error('Gallery must be visible on tab return');
+            document.dispatchEvent(new Event('visibilitychange'));
+          });
+        }
+      };
+      await assertGallery('top');
+      await assertGallery('bottom');
+      for (const position of ['top', 'bottom', 'top', 'bottom']) {
+        await gallery.locator(`#transition-${position}`).scrollIntoViewIfNeeded();
+        await returnToGallery();
+        await assertGallery(position);
+      }
+
+      await gallery.locator('#transition-bottom-author').evaluate(node => {
+        node.style.opacity = '0.5';
+        getComputedStyle(node).opacity;
+      });
+      await gallery.waitForFunction(() => document.querySelector('#transition-bottom-author').getAnimations()
+        .some(animation => animation.transitionProperty === 'opacity' && animation.playState === 'running' && animation.startTime !== null));
+      const opacityStart = await gallery.locator('#transition-bottom-author').evaluate(node =>
+        node.getAnimations().find(animation => animation.transitionProperty === 'opacity').startTime);
+      await returnToGallery();
+      await gallery.waitForTimeout(50);
+      const opacityAfterRefresh = await gallery.locator('#transition-bottom-author').evaluate(node => {
+        const animation = node.getAnimations().find(animation => animation.transitionProperty === 'opacity');
+        return animation && { startTime: animation.startTime, playState: animation.playState };
+      });
+      assert.deepEqual(opacityAfterRefresh, { startTime: opacityStart, playState: 'running' }, 'Refreshing filters must preserve unrelated opacity transitions');
+      await gallery.locator('#transition-bottom-author').evaluate(node => {
+        for (const animation of node.getAnimations()) if (animation.transitionProperty === 'opacity') animation.finish();
+        node.style.removeProperty('opacity');
+        getComputedStyle(node).opacity;
+        for (const animation of node.getAnimations()) if (animation.transitionProperty === 'opacity') animation.finish();
+      });
+
+      await gallery.locator('#transition-top-author').evaluate(node => {
+        node.classList.replace('author-dimmed', 'author-contrasted');
+      });
+      expected['transition-top-author'] = 'contrast(0.5) invert(1)';
+      await assertGallery('top');
+      original['transition-bottom-author'].filter.value = await gallery.locator('#transition-bottom-author').evaluate(node => {
+        node.style.setProperty('filter', 'contrast(.5)', 'important');
+        return node.style.getPropertyValue('filter');
+      });
+      expected['transition-bottom-author'] = 'contrast(0.5) invert(1)';
+      await assertGallery('bottom');
+      await returnToGallery();
+      await assertGallery('top');
+      await assertGallery('bottom');
+
+      await state(gallery, 'off');
+      await state(gallery, 'media');
+      await assertGallery('top');
+      await assertGallery('bottom');
+      await control.evaluate(async tabId => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ['content.js'] });
+        }
+      }, await tabId(gallery));
+      await assertGallery('top');
+      await assertGallery('bottom');
+
+      await state(gallery, 'off');
+      await waitFilter(gallery, '#transition-top', false);
+      await gallery.waitForTimeout(250);
+      const restored = await gallery.evaluate(snapshot => Object.fromEntries(Object.entries(snapshot).map(([id, properties]) => {
+        const node = document.getElementById(id);
+        return [id, Object.fromEntries(Object.keys(properties).map(property => [property, {
+          value: node.style.getPropertyValue(property), priority: node.style.getPropertyPriority(property),
+        }]))];
+      })), original);
+      assert.deepEqual(restored, original, 'Disabling must restore filter and transition declarations with their original priorities');
+      assert.equal(await gallery.locator('#transition-top-author').evaluate(node => getComputedStyle(node).filter), 'contrast(0.5)');
+      assert.equal(await gallery.locator('#transition-bottom-author').evaluate(node => getComputedStyle(node).filter), 'contrast(0.5)');
+      await pixel(gallery, '#transition-top', [20, 100, 220]);
+      await pixel(gallery, '#transition-bottom', [20, 100, 220]);
+    } finally {
+      await state(page, 'media');
+      await gallery.close();
+      await peer.close();
+      await page.bringToFront();
+    }
+  });
+
   await test('page mode clears media filters throughout frames and shadows to avoid two inversions', async () => {
     await state(page, 'page');
     await waitFilter(page, 'html', true);
