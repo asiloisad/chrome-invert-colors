@@ -27,6 +27,7 @@ if (executable) {
 const fixtureFiles = new Map([
   ['/page.html', ['page.html', 'text/html; charset=utf-8']],
   ['/frame.html', ['frame.html', 'text/html; charset=utf-8']],
+  ['/fullscreen.html', ['fullscreen.html', 'text/html; charset=utf-8']],
   ['/swatch.svg', ['swatch.svg', 'image/svg+xml']],
 ]);
 const server = http.createServer(async (request, response) => {
@@ -88,12 +89,12 @@ async function frameFor(page, selector) {
   await frame.waitForSelector('img');
   return frame;
 }
-async function pixel(page, selector, expected) {
+async function pixel(page, selector, expected, label = selector) {
   const buffer = await page.locator(selector).screenshot({ animations: 'disabled' });
   const { data, info } = await sharp(buffer).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const index = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * info.channels;
   const actual = [...data.subarray(index, index + 3)];
-  assert.ok(actual.every((value, i) => Math.abs(value - expected[i]) <= 2), `${selector} pixel ${actual}, expected ${expected}`);
+  assert.ok(actual.every((value, i) => Math.abs(value - expected[i]) <= 2), `${label} pixel ${actual}, expected ${expected}`);
 }
 
 try {
@@ -371,6 +372,184 @@ try {
     await pixel(page, '#image', [235, 155, 35]);
     await pixel(page, '#nested', [235, 155, 35]);
     await pixel(page, '#text-swatch', [235, 155, 35]);
+  });
+
+  await test('real fullscreen video and player preserve every saved mode and temporary inversion', async () => {
+    const videoPage = await context.newPage();
+    try {
+      await videoPage.goto(`${origin}/fullscreen.html?mode-matrix`);
+      await videoPage.waitForSelector('body[data-ready="true"]');
+      await videoPage.bringToFront();
+      const id = await tabId(videoPage);
+      for (const mode of ['media', 'page', 'off']) {
+        for (const temporary of [false, true]) {
+          await state(videoPage, mode);
+          if (temporary) await command('TOGGLE_TEMPORARY', { tabId: id });
+          const inverted = (mode !== 'off') !== temporary;
+          const expected = inverted ? [235, 155, 35] : [20, 100, 220];
+          await waitFilter(videoPage, 'html', (mode === 'page') !== temporary);
+          await pixel(videoPage, '#stream-video', expected);
+          for (const target of ['video', 'player']) {
+            const fullscreenId = target === 'video' ? 'stream-video' : 'player';
+            await videoPage.locator(`#enter-${target}`).click();
+            await videoPage.waitForFunction(id => document.fullscreenElement?.id === id, fullscreenId);
+            // This is the real Fullscreen API: the promoted top-layer surface can
+            // escape ancestor CSS filters even though computed filters look right.
+            await videoPage.waitForTimeout(100);
+            await pixel(videoPage, '#stream-video', expected, `${mode} mode, temporary=${temporary}, fullscreen=${target}`);
+            if (target === 'player') {
+              const pageInverted = (mode === 'page') !== temporary;
+              await pixel(videoPage, '#player-swatch', pageInverted ? [235, 155, 35] : [20, 100, 220]);
+            }
+            await videoPage.evaluate(() => document.exitFullscreen());
+            await videoPage.waitForFunction(() => document.fullscreenElement === null);
+            await videoPage.waitForTimeout(100);
+            await pixel(videoPage, '#stream-video', expected);
+            assert.equal(await videoPage.locator('#player').evaluate(node => node.style.getPropertyValue('filter')), '', 'Exiting fullscreen must remove temporary player compensation');
+          }
+          await command('RESET_TEMPORARY', { tabId: id });
+        }
+      }
+    } finally {
+      await videoPage.evaluate(() => document.fullscreenElement && document.exitFullscreen()).catch(() => {});
+      await state(page, 'media');
+      await videoPage.close();
+      await page.bringToFront();
+    }
+  });
+
+  await test('fullscreen reacts to video options, pause and temporary modes, and restores author filters', async () => {
+    const videoPage = await context.newPage();
+    try {
+      await videoPage.goto(`${origin}/fullscreen.html?live-state`);
+      await videoPage.waitForSelector('body[data-ready="true"]');
+      await videoPage.bringToFront();
+      const id = await tabId(videoPage);
+      await state(videoPage, 'off');
+      await waitFilter(videoPage, '#stream-video', false);
+      const original = await videoPage.evaluate(() => {
+        const player = document.querySelector('#player');
+        const video = document.querySelector('#stream-video');
+        player.style.setProperty('filter', 'contrast(1)', 'important');
+        video.style.setProperty('filter', 'brightness(.5)', 'important');
+        return [player, video].map(node => ({ value: node.style.getPropertyValue('filter'), priority: node.style.getPropertyPriority('filter') }));
+      });
+      await state(videoPage, 'media');
+      await waitFilter(videoPage, '#stream-video', true);
+      await videoPage.locator('#enter-player').click();
+      await videoPage.waitForFunction(() => document.fullscreenElement?.id === 'player');
+      await pixel(videoPage, '#stream-video', [245, 205, 145]);
+      await command('UPDATE_SETTINGS', { patch: { media: { video: false } } });
+      await waitFilter(videoPage, '#stream-video', false);
+      await pixel(videoPage, '#stream-video', [10, 50, 110]);
+      await command('TOGGLE_TEMPORARY_WHOLE_PAGE', { tabId: id });
+      await waitFilter(videoPage, '#player', true);
+      await pixel(videoPage, '#stream-video', [245, 205, 145]);
+      await command('TOGGLE_TEMPORARY_DISABLED', { tabId: id });
+      await waitFilter(videoPage, '#player', false);
+      await pixel(videoPage, '#stream-video', [10, 50, 110]);
+      await command('RESET_TEMPORARY', { tabId: id });
+      await command('UPDATE_SETTINGS', { patch: { media: { video: true } } });
+      await waitFilter(videoPage, '#stream-video', true);
+      await command('SET_ENABLED', { enabled: false });
+      await waitFilter(videoPage, '#stream-video', false);
+      await pixel(videoPage, '#stream-video', [10, 50, 110]);
+      await command('SET_ENABLED', { enabled: true });
+      await waitFilter(videoPage, '#stream-video', true);
+      await pixel(videoPage, '#stream-video', [245, 205, 145]);
+      await state(videoPage, 'page');
+      await waitFilter(videoPage, '#player', true);
+      await pixel(videoPage, '#stream-video', [245, 205, 145]);
+      assert.equal(await videoPage.locator('#stream-video').evaluate(node => getComputedStyle(node).filter), 'brightness(0.5)', 'Whole-page fullscreen must not leave a second video inversion');
+      await videoPage.evaluate(() => document.exitFullscreen());
+      await videoPage.waitForFunction(() => document.fullscreenElement === null);
+      await state(videoPage, 'off');
+      await waitFilter(videoPage, 'html', false);
+      const restored = await videoPage.evaluate(() => ['#player', '#stream-video'].map(selector => {
+        const node = document.querySelector(selector);
+        return { value: node.style.getPropertyValue('filter'), priority: node.style.getPropertyPriority('filter') };
+      }));
+      assert.deepEqual(restored, original, 'Exiting fullscreen and disabling must preserve author filters and priorities');
+      await pixel(videoPage, '#stream-video', [10, 50, 110]);
+    } finally {
+      await videoPage.evaluate(() => document.fullscreenElement && document.exitFullscreen()).catch(() => {});
+      await command('SET_ENABLED', { enabled: true });
+      await command('UPDATE_SETTINGS', { patch: { media: { video: true } } });
+      await state(page, 'media');
+      await videoPage.close();
+      await page.bringToFront();
+    }
+  });
+
+  await test('fullscreen video in a cross-origin iframe keeps whole-page inversion once', async () => {
+    const videoPage = await context.newPage();
+    try {
+      await videoPage.goto(`${origin}/fullscreen.html?frame-owner`);
+      await videoPage.evaluate(port => {
+        const frame = document.createElement('iframe');
+        frame.id = 'fullscreen-frame';
+        frame.allowFullscreen = true;
+        frame.src = `http://localhost:${port}/fullscreen.html?cross-origin-video`;
+        document.body.append(frame);
+      }, port);
+      const frame = await (await videoPage.waitForSelector('#fullscreen-frame')).contentFrame();
+      assert.ok(frame);
+      await frame.waitForSelector('body[data-ready="true"]');
+      await videoPage.bringToFront();
+      await state(videoPage, 'page');
+      await waitFilter(videoPage, 'html', true);
+      await frame.locator('#enter-video').click();
+      await frame.waitForFunction(() => document.fullscreenElement?.id === 'stream-video');
+      assert.equal(await videoPage.evaluate(() => document.fullscreenElement?.id), 'fullscreen-frame');
+      await videoPage.waitForTimeout(100);
+      await waitFilter(videoPage, '#fullscreen-frame', true);
+      await waitFilter(frame, 'html', false);
+      await waitFilter(frame, '#stream-video', false);
+      await pixel(videoPage, '#fullscreen-frame', [235, 155, 35]);
+      await frame.evaluate(() => document.exitFullscreen());
+      await videoPage.waitForFunction(() => document.fullscreenElement === null);
+      await waitFilter(frame, '#stream-video', false);
+      await waitFilter(frame, 'html', false);
+      assert.equal(await videoPage.locator('#fullscreen-frame').evaluate(node => node.style.getPropertyValue('filter')), '', 'Iframe compensation must be removed on fullscreen exit');
+    } finally {
+      await videoPage.evaluate(() => document.fullscreenElement && document.exitFullscreen()).catch(() => {});
+      await state(page, 'media');
+      await videoPage.close();
+      await page.bringToFront();
+    }
+  });
+
+  await test('fullscreen inside open shadow DOM inverts the actual top-layer element', async () => {
+    const videoPage = await context.newPage();
+    try {
+      await videoPage.goto(`${origin}/fullscreen.html?shadow-player`);
+      await videoPage.waitForSelector('body[data-ready="true"]');
+      await videoPage.evaluate(() => window.movePlayerIntoShadow());
+      await videoPage.bringToFront();
+      await state(videoPage, 'page');
+      await waitFilter(videoPage, 'html', true);
+      await pixel(videoPage, '#stream-video', [235, 155, 35]);
+      for (const target of ['video', 'player']) {
+        const fullscreenId = target === 'video' ? 'stream-video' : 'player';
+        await videoPage.locator(`#enter-${target}`).click();
+        await videoPage.waitForFunction(id => {
+          const host = document.querySelector('#shadow-player');
+          return document.fullscreenElement === host && host.shadowRoot.fullscreenElement?.id === id;
+        }, fullscreenId);
+        await waitShadowFilter(videoPage, '#shadow-player', `#${fullscreenId}`, true);
+        await waitFilter(videoPage, '#shadow-player', false);
+        await pixel(videoPage, '#stream-video', [235, 155, 35]);
+        await videoPage.evaluate(() => document.exitFullscreen());
+        await videoPage.waitForFunction(() => document.fullscreenElement === null);
+        await waitShadowFilter(videoPage, '#shadow-player', `#${fullscreenId}`, false);
+        await pixel(videoPage, '#stream-video', [235, 155, 35]);
+      }
+    } finally {
+      await videoPage.evaluate(() => document.fullscreenElement && document.exitFullscreen()).catch(() => {});
+      await state(page, 'media');
+      await videoPage.close();
+      await page.bringToFront();
+    }
   });
 
   await test('temporary page inversion toggles independently and leaves saved media mode intact', async () => {

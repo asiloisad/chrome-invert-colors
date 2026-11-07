@@ -64,7 +64,8 @@ No keyboard shortcuts are assigned by default. You can assign temporary inversio
 - **Inline SVG** is optional and off by default because it often contains monochrome icons or text. SVG loaded through an image element follows the Images setting.
 - **CSS background images** are optional and off by default. URL and image-set backgrounds are handled only on empty elements without text, child elements, controls, or visible pseudo-element content. Backgrounds on other elements and gradients are left alone.
 - **Frames**, including cross-origin frames, inherit the main website's mode. Changing modes also removes obsolete filters inside frames.
-- **Open Shadow DOM** is supported, including roots created later. Media inside closed roots is inaccessible; Whole page mode covers their rendered output.
+- **Fullscreen video and players** preserve the selected mode, including Whole page and temporary controls. Leaving fullscreen restores normal page filtering.
+- **Open Shadow DOM** is supported, including roots created later. Media inside closed roots is inaccessible; Whole page mode covers their rendered output except when an inaccessible internal element enters fullscreen.
 - The extension composes its inversion with site-authored filters and restores them when disabled. Ordinary class, style, and stylesheet changes are tracked. Animated filters or changes made only through CSSOM may require reapplying the mode or refreshing.
 
 Protected browser pages, extension stores, and some built-in document viewers block injection. Automatic operation requires the extension's site access to be enabled.

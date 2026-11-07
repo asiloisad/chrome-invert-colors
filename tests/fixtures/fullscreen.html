@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Invert colors fullscreen video fixture</title>
+<style>
+  html { background: white; color: black; }
+  body { margin: 20px; font: 16px system-ui; }
+  #player { position: relative; width: 320px; background: rgb(20, 100, 220); }
+  video { display: block; width: 320px; height: 180px; object-fit: fill; }
+  video:fullscreen { width: 100vw; height: 100vh; }
+  #player:fullscreen { width: 100vw; height: 100vh; }
+  #player:fullscreen video { width: 100%; height: 100%; }
+  #player-swatch { position: absolute; left: 0; top: 0; width: 40px; height: 40px; background: rgb(20, 100, 220); }
+</style>
+<body>
+<button id="enter-video">Fullscreen video</button>
+<button id="enter-player">Fullscreen player</button>
+<div id="player">
+  <video id="stream-video" autoplay muted playsinline></video>
+  <div id="player-swatch"></div>
+</div>
+<script>
+  const video = document.querySelector('#stream-video');
+  const canvas = document.createElement('canvas');
+  canvas.width = 320;
+  canvas.height = 180;
+  const paint = () => {
+    const context = canvas.getContext('2d');
+    context.fillStyle = 'rgb(20, 100, 220)';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    requestAnimationFrame(paint);
+  };
+  paint();
+  video.srcObject = canvas.captureStream(30);
+  video.play().then(() => video.requestVideoFrameCallback(() => document.body.dataset.ready = 'true'));
+  document.querySelector('#enter-video').addEventListener('click', () => video.requestFullscreen());
+  const player = document.querySelector('#player');
+  document.querySelector('#enter-player').addEventListener('click', () => player.requestFullscreen());
+  window.movePlayerIntoShadow = () => {
+    const player = document.querySelector('#player');
+    const host = document.createElement('div');
+    host.id = 'shadow-player';
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = document.querySelector('style').textContent;
+    shadow.append(style, player);
+    document.body.append(host);
+  };
+</script>

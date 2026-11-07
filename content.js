@@ -89,6 +89,16 @@
     return root instanceof ShadowRoot ? root.host : null;
   }
 
+  function fullscreenElement() {
+    let element = document.fullscreenElement;
+    // Document.fullscreenElement is retargeted to the host for shadow content.
+    // The host's filter cannot affect an internal element promoted to the top layer.
+    while (element?.shadowRoot?.fullscreenElement) {
+      element = element.shadowRoot.fullscreenElement;
+    }
+    return element;
+  }
+
   function cancelFilterTransitions(element) {
     // A transition can keep reporting our old inversion after the inline filter
     // is restored. Never capture that interpolated value as the site's filter.
@@ -282,6 +292,7 @@
       attributeFilter: ["style", "class", "href", "rel", "media", "disabled", "slot", "name"],
     });
     root.addEventListener("slotchange", scheduleFlush, true);
+    root.addEventListener("fullscreenchange", onFullscreenChange, true);
     observedRoots.set(root, observer);
   }
 
@@ -373,12 +384,14 @@
     if (disposed) return;
     const mediaEnabled = state.enabled && state.mode === "media";
     const pageEnabled = state.enabled && state.topFrame && ((state.mode === "page") !== state.temporary);
+    const fullscreen = fullscreenElement();
     const changed = new Set();
 
     for (const [root, observer] of observedRoots) {
       if (root instanceof ShadowRoot && !root.host.isConnected) {
         observer.disconnect();
         root.removeEventListener("slotchange", scheduleFlush, true);
+        root.removeEventListener("fullscreenchange", onFullscreenChange, true);
         observedRoots.delete(root);
       }
     }
@@ -406,19 +419,28 @@
     const desired = new Set();
     if (mediaEnabled) {
       for (const element of candidates) {
-        let parent = composedParent(element);
+        let parent = element === fullscreen ? null : composedParent(element);
         let nested = false;
         while (parent) {
           if (candidates.has(parent)) {
             nested = true;
             break;
           }
+          // Ancestors outside the fullscreen top layer do not filter its contents.
+          if (parent === fullscreen) break;
           parent = composedParent(parent);
         }
         if (!nested) desired.add(element);
       }
     }
-    if (pageEnabled && document.documentElement?.style) desired.add(document.documentElement);
+    const pageSurface = fullscreen || document.documentElement;
+    if (pageEnabled && pageSurface?.style) {
+      // A fullscreen iframe includes its child document, so page inversion stays
+      // top-frame-only. A directly fullscreened video may already need media
+      // compensation; two inverts on that same element cancel rather than merge.
+      if (desired.has(pageSurface)) desired.delete(pageSurface);
+      else desired.add(pageSurface);
+    }
 
     for (const [element, record] of managed) {
       if (!desired.has(element) || !element.isConnected) restoreFilter(element, record);
@@ -460,6 +482,12 @@
     if (document.visibilityState === "visible") refresh();
   }
 
+  function onFullscreenChange() {
+    fullScan = true;
+    refreshFilters = true;
+    scheduleFlush();
+  }
+
   function onMessage(message, _sender, sendResponse) {
     if (message?.type !== "APPLY_STATE") return;
     applyState(message.state);
@@ -472,6 +500,7 @@
     for (const [root, observer] of observedRoots) {
       observer.disconnect();
       root.removeEventListener("slotchange", scheduleFlush, true);
+      root.removeEventListener("fullscreenchange", onFullscreenChange, true);
     }
     observedRoots.clear();
     for (const [element, record] of managed) restoreFilter(element, record);

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Preserve whole-page and temporary inversion when videos or players enter fullscreen, including embedded players and open Shadow DOM, and restore page filtering after exit.
+
 ## 1.0.1
 
 - Keep media inversion stable during CSS filter transitions, tab returns, and scrolling.
