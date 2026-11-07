@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Invert colors",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Compensate for inverted screen colors with media filters, site rules, and temporary tab controls.",
   "minimum_chrome_version": "120",
   "permissions": ["storage", "scripting", "activeTab", "contextMenus", "webNavigation"],

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.2
 
 - Remove a one-frame flash when entering or leaving fullscreen by applying its filter before the next paint.
 - Preserve whole-page and temporary inversion when videos or players enter fullscreen, including embedded players and open Shadow DOM, and restore page filtering after exit.
