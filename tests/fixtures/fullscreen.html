@@ -36,6 +36,22 @@
   document.querySelector('#enter-video').addEventListener('click', () => video.requestFullscreen());
   const player = document.querySelector('#player');
   document.querySelector('#enter-player').addEventListener('click', () => player.requestFullscreen());
+  window.fullscreenFrames = [];
+  document.addEventListener('fullscreenchange', () => {
+    requestAnimationFrame(() => {
+      let surface = document.fullscreenElement;
+      while (surface?.shadowRoot?.fullscreenElement) surface = surface.shadowRoot.fullscreenElement;
+      const filters = [];
+      let node = video;
+      while (node) {
+        filters.push({ id: node.id || node.localName, filter: getComputedStyle(node).filter });
+        // The top layer is painted independently of ancestors outside its surface.
+        if (node === surface) break;
+        node = node.parentElement || node.getRootNode().host;
+      }
+      window.fullscreenFrames.push({ surface: surface?.id || null, filters });
+    });
+  });
   window.movePlayerIntoShadow = () => {
     const player = document.querySelector('#player');
     const host = document.createElement('div');

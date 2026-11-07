@@ -485,7 +485,10 @@
   function onFullscreenChange() {
     fullScan = true;
     refreshFilters = true;
-    scheduleFlush();
+    // Fullscreen events can arrive during rendering. A timer runs after that
+    // frame has painted, briefly exposing the new surface without its filter.
+    if (flushTimer !== null) clearTimeout(flushTimer);
+    flush();
   }
 
   function onMessage(message, _sender, sendResponse) {

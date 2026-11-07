@@ -418,6 +418,48 @@ try {
     }
   });
 
+  await test('the first fullscreen entry and exit frame keeps the intended video colors', async () => {
+    const videoPage = await context.newPage();
+    try {
+      await videoPage.goto(`${origin}/fullscreen.html?first-frame`);
+      await videoPage.waitForSelector('body[data-ready="true"]');
+      await videoPage.bringToFront();
+      const id = await tabId(videoPage);
+      for (const mode of ['page', 'media']) {
+        await state(videoPage, mode);
+        if (mode === 'media') await command('TOGGLE_TEMPORARY', { tabId: id });
+        const expectedInversions = mode === 'page' ? 1 : 0;
+        const expectedPixel = expectedInversions ? [235, 155, 35] : [20, 100, 220];
+        await pixel(videoPage, '#stream-video', expectedPixel);
+        for (const target of ['video', 'player']) {
+          await videoPage.evaluate(() => { window.fullscreenFrames = []; });
+          await videoPage.locator(`#enter-${target}`).click();
+          await videoPage.waitForFunction(() => window.fullscreenFrames.length >= 1);
+          await videoPage.evaluate(() => document.exitFullscreen());
+          await videoPage.waitForFunction(() => window.fullscreenFrames.length >= 2);
+          const frames = await videoPage.evaluate(() => window.fullscreenFrames);
+          assert.deepEqual(frames.map(frame => frame.surface), [target === 'video' ? 'stream-video' : 'player', null]);
+          for (const [index, frame] of frames.entries()) {
+            // A solid real video makes filter parity an unambiguous color check.
+            // Reading in the first rendering callback catches a one-frame gap that
+            // screenshots taken after requestFullscreen() settles cannot observe.
+            const inversions = frame.filters.reduce((total, node) =>
+              total + (node.filter.match(/invert\((?:1(?:\.0*)?|100%)\)/g)?.length || 0), 0);
+            assert.equal(inversions % 2, expectedInversions,
+              `${mode}, ${target}, first ${index ? 'exit' : 'entry'} frame: ${JSON.stringify(frame)}`);
+          }
+          await pixel(videoPage, '#stream-video', expectedPixel);
+        }
+        await command('RESET_TEMPORARY', { tabId: id });
+      }
+    } finally {
+      await videoPage.evaluate(() => document.fullscreenElement && document.exitFullscreen()).catch(() => {});
+      await state(page, 'media');
+      await videoPage.close();
+      await page.bringToFront();
+    }
+  });
+
   await test('fullscreen reacts to video options, pause and temporary modes, and restores author filters', async () => {
     const videoPage = await context.newPage();
     try {
